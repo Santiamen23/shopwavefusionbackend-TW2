@@ -14,6 +14,8 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 @Configuration
 public class ProjectSecurityConfig {
 
@@ -33,6 +35,9 @@ public class ProjectSecurityConfig {
 				})).csrf((csrf) -> csrf.disable())
 				.addFilterAfter(new JWTTokenGeneratorFilter(), BasicAuthenticationFilter.class)
 				.addFilterBefore(new JWTTokenValidatorFilter(), BasicAuthenticationFilter.class)
+				.exceptionHandling(exceptions -> exceptions
+						.authenticationEntryPoint((request, response, authException) -> response
+								.sendError(HttpServletResponse.SC_UNAUTHORIZED, authException.getMessage())))
 				.authorizeHttpRequests((requests) -> requests
 						.requestMatchers("/admin/products/**", "/admin/orders/**", "/admin/control/**").hasRole("ADMIN")
 						.requestMatchers("/cart/**", "/users/**", "cart_items/**", "/orders/**", 
@@ -41,7 +46,7 @@ public class ProjectSecurityConfig {
 						.requestMatchers("/auth/signin").authenticated()
 						.requestMatchers("/notices","/products/**", "/","/contact", "/auth/signup", "/swagger-ui*/**", "/v3/api-docs/**")
 						.permitAll())
-				.formLogin(Customizer.withDefaults()).httpBasic(Customizer.withDefaults());
+				.httpBasic(Customizer.withDefaults());
 		return http.build();
 	}
 

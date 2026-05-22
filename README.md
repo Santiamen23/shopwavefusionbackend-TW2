@@ -30,7 +30,7 @@
 
 ```
 async function fetchUserDetails() {
-    const username = 'admin@gmail.com';
+    const username = 'admin@example.com';
     const password = 'admin';
     
      const authHeader = 'Basic ' + btoa(username + ':' + password);
