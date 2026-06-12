@@ -10,7 +10,7 @@ import com.shopwavefusion.modal.Rating;
 
 public interface RatingRepository extends JpaRepository<Rating, Long> {
 	
-	@Query("Select r From Rating r where r.product.id=:productId")
+	@Query("SELECT r FROM Rating r WHERE r.product.id = :productId ORDER BY r.createdAt DESC")
 	public List<Rating> getAllProductsRating(@Param("productId") Long productId);
 
 }

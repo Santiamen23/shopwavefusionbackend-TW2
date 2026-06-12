@@ -20,7 +20,7 @@ import com.shopwavefusion.repository.CategoryRepository;
 import com.shopwavefusion.repository.ProductRepository;
 import com.shopwavefusion.request.CreateProductRequest;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ProductServiceImplementation implements ProductService {
@@ -136,51 +136,82 @@ public class ProductServiceImplementation implements ProductService {
 	}
 
 	@Override
-	public Product updateProduct(Long productId,Product req) throws ProductException {
-		Product product=findProductById(productId);
-		
-		if(req.getQuantity()!=0) {
-			product.setQuantity(req.getQuantity());
+	@Transactional
+	public Product updateProduct(Long productId, Product req) throws ProductException {
+		Product product = findProductById(productId);
+
+		if (req.getTitle() != null && !req.getTitle().isBlank()) {
+			product.setTitle(req.getTitle());
 		}
-		if(req.getDescription()!=null) {
+		if (req.getDescription() != null) {
 			product.setDescription(req.getDescription());
 		}
-		
-		
-			
-		
+		if (req.getBrand() != null && !req.getBrand().isBlank()) {
+			product.setBrand(req.getBrand());
+		}
+		if (req.getColor() != null && !req.getColor().isBlank()) {
+			product.setColor(req.getColor());
+		}
+		if (req.getImageUrl() != null && !req.getImageUrl().isBlank()) {
+			product.setImageUrl(req.getImageUrl());
+		}
+		if (req.getPrice() > 0) {
+			product.setPrice(req.getPrice());
+		}
+		if (req.getDiscountedPrice() >= 0) {
+			product.setDiscountedPrice(req.getDiscountedPrice());
+		}
+		if (req.getDiscountPersent() >= 0) {
+			product.setDiscountPersent(req.getDiscountPersent());
+		}
+		if (req.getQuantity() >= 0) {
+			product.setQuantity(req.getQuantity());
+		}
+		if (req.getSizes() != null && !req.getSizes().isEmpty()) {
+			product.setSizes(req.getSizes());
+		}
+		if (req.getNumRatings() >= 0) {
+			product.setNumRatings(req.getNumRatings());
+		}
+		if (req.getCategory() != null && req.getCategory().getId() != null) {
+			Category category = categoryRepository.findById(req.getCategory().getId())
+					.orElseThrow(() -> new ProductException("Category not found with id " + req.getCategory().getId()));
+			product.setCategory(category);
+		}
+
 		return productRepository.save(product);
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public List<Product> getAllProducts() {
 		return productRepository.findAll();
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public Product findProductById(Long id) throws ProductException {
-		Optional<Product> opt=productRepository.findById(id);
-		
-		if(opt.isPresent()) {
+		Optional<Product> opt = productRepository.findById(id);
+
+		if (opt.isPresent()) {
 			return opt.get();
 		}
-		throw new ProductException("product not found with id "+id);
+		throw new ProductException("product not found with id " + id);
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public List<Product> findProductByCategory(String category) {
-		
-		System.out.println("category --- "+category);
-		
+
 		List<Product> products = productRepository.findByCategory(category);
-		
+
 		return products;
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public List<Product> searchProduct(String query) {
-		List<Product> products=productRepository.searchProduct(query);
-		return products;
+		return productRepository.searchProduct(query);
 	}
 
 
@@ -188,42 +219,46 @@ public class ProductServiceImplementation implements ProductService {
 	
 	
 	@Override
-	public Page<Product> getAllProduct(String category, List<String>colors, 
-			List<String> sizes, Integer minPrice, Integer maxPrice, 
-			Integer minDiscount,String sort, String stock, Integer pageNumber, Integer pageSize ) {
+	public Page<Product> getAllProduct(String category, List<String> colors, List<String> sizes, Integer minPrice,
+			Integer maxPrice, Integer minDiscount, String sort, String stock, Integer pageNumber, Integer pageSize) {
 
-		Pageable pageable = PageRequest.of(pageNumber, pageSize);
-		
-		List<Product> products = productRepository.filterProducts(category, minPrice, maxPrice, minDiscount, sort);
-		
-		
-		if (!colors.isEmpty()) {
+		int safePageNumber = pageNumber != null ? pageNumber : 0;
+		int safePageSize = pageSize != null ? pageSize : 10;
+		Pageable pageable = PageRequest.of(safePageNumber, safePageSize);
+
+		String categoryParam = category != null ? category : "";
+		List<Product> products = productRepository.filterProducts(categoryParam, minPrice, maxPrice, minDiscount, sort);
+
+		if (colors != null && !colors.isEmpty()) {
 			products = products.stream()
-			        .filter(p -> colors.stream().anyMatch(c -> c.equalsIgnoreCase(p.getColor())))
-			        .collect(Collectors.toList());
-		
-		
-		} 
-
-		if(stock!=null) {
-
-			if(stock.equals("in_stock")) {
-				products=products.stream().filter(p->p.getQuantity()>0).collect(Collectors.toList());
-			}
-			else if (stock.equals("out_of_stock")) {
-				products=products.stream().filter(p->p.getQuantity()<1).collect(Collectors.toList());				
-			}
-				
-					
+					.filter(p -> colors.stream().anyMatch(c -> c.equalsIgnoreCase(p.getColor())))
+					.collect(Collectors.toList());
 		}
+
+		if (sizes != null && !sizes.isEmpty()) {
+			products = products.stream()
+					.filter(p -> p.getSizes() != null && p.getSizes().stream()
+							.anyMatch(s -> sizes.stream().anyMatch(req -> req.equalsIgnoreCase(s.getName()))))
+					.collect(Collectors.toList());
+		}
+
+		if (stock != null) {
+			if (stock.equals("in_stock")) {
+				products = products.stream().filter(p -> p.getQuantity() > 0).collect(Collectors.toList());
+			} else if (stock.equals("out_of_stock")) {
+				products = products.stream().filter(p -> p.getQuantity() < 1).collect(Collectors.toList());
+			}
+		}
+
 		int startIndex = (int) pageable.getOffset();
 		int endIndex = Math.min(startIndex + pageable.getPageSize(), products.size());
+		if (startIndex > products.size()) {
+			startIndex = products.size();
+		}
 
 		List<Product> pageContent = products.subList(startIndex, endIndex);
 		Page<Product> filteredProducts = new PageImpl<>(pageContent, pageable, products.size());
-	    return filteredProducts; // If color list is empty, do nothing and return all products
-		
-		
+		return filteredProducts;
 	}
 
 }

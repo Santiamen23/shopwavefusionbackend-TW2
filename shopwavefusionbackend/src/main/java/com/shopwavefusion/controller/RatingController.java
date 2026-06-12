@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.shopwavefusion.exception.ProductException;
 import com.shopwavefusion.exception.UserException;
 import com.shopwavefusion.modal.Rating;
-import com.shopwavefusion.modal.Review;
 import com.shopwavefusion.modal.User;
 import com.shopwavefusion.request.RatingRequest;
 import com.shopwavefusion.service.RatingServices;
@@ -24,27 +23,28 @@ import com.shopwavefusion.service.UserService;
 @RestController
 @RequestMapping("/ratings")
 public class RatingController {
-	
+
 	private UserService userService;
 	private RatingServices ratingServices;
-	
-	public RatingController(UserService userService,RatingServices ratingServices) {
-		this.ratingServices=ratingServices;
-		this.userService=userService;
-		// TODO Auto-generated constructor stub
+
+	public RatingController(UserService userService, RatingServices ratingServices) {
+		this.ratingServices = ratingServices;
+		this.userService = userService;
 	}
 
 	@PostMapping("/create")
-	public ResponseEntity<Rating> createRatingHandler(@RequestBody RatingRequest req,@RequestHeader("Authorization") String jwt) throws UserException, ProductException{
-		User user=userService.findUserProfileByJwt(jwt);
-		Rating rating=ratingServices.createRating(req, user);
-		return new ResponseEntity<>(rating,HttpStatus.ACCEPTED);
+	public ResponseEntity<Rating> createRatingHandler(@RequestBody RatingRequest req,
+			@RequestHeader("Authorization") String jwt) throws UserException, ProductException {
+		User user = userService.findUserProfileByJwt(jwt);
+		Rating rating = ratingServices.createRating(req, user);
+		return new ResponseEntity<>(rating, HttpStatus.CREATED);
 	}
-	
+
 	@GetMapping("/product/{productId}")
-	public ResponseEntity<List<Rating>> getProductsReviewHandler(@PathVariable Long productId){
-	
-		List<Rating> ratings=ratingServices.getProductsRating(productId);
-		return new ResponseEntity<>(ratings,HttpStatus.OK);
+	public ResponseEntity<List<Rating>> getProductsReviewHandler(@PathVariable Long productId) {
+
+		List<Rating> ratings = ratingServices.getProductsRating(productId);
+		return new ResponseEntity<>(ratings, HttpStatus.OK);
 	}
 }
+

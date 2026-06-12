@@ -21,9 +21,8 @@ public class CommonController {
 
 	@GetMapping("/all")
 	public ResponseEntity<List<Product>> findAllProduct() {
-
 		List<Product> products = productService.getAllProducts();
-
 		return new ResponseEntity<List<Product>>(products, HttpStatus.OK);
 	}
 }
+

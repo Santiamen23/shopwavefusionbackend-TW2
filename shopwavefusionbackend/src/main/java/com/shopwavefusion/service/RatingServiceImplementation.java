@@ -4,45 +4,55 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.shopwavefusion.exception.ProductException;
 import com.shopwavefusion.modal.Product;
 import com.shopwavefusion.modal.Rating;
 import com.shopwavefusion.modal.User;
+import com.shopwavefusion.repository.ProductRepository;
 import com.shopwavefusion.repository.RatingRepository;
 import com.shopwavefusion.request.RatingRequest;
 
 @Service
-public class RatingServiceImplementation implements RatingServices{
-	
+public class RatingServiceImplementation implements RatingServices {
+
 	private RatingRepository ratingRepository;
 	private ProductService productService;
-	
-	public RatingServiceImplementation(RatingRepository ratingRepository,ProductService productService) {
-		this.ratingRepository=ratingRepository;
-		this.productService=productService;
+	private ProductRepository productRepository;
+
+	public RatingServiceImplementation(RatingRepository ratingRepository, ProductService productService,
+			ProductRepository productRepository) {
+		this.ratingRepository = ratingRepository;
+		this.productService = productService;
+		this.productRepository = productRepository;
 	}
 
 	@Override
-	public Rating createRating(RatingRequest req,User user) throws ProductException {
-		
-		Product product=productService.findProductById(req.getProductId());
-		
-		Rating rating=new Rating();
+	@Transactional
+	public Rating createRating(RatingRequest req, User user) throws ProductException {
+
+		Product product = productService.findProductById(req.getProductId());
+
+		Rating rating = new Rating();
 		rating.setProduct(product);
 		rating.setUser(user);
 		rating.setRating(req.getRating());
 		rating.setCreatedAt(LocalDateTime.now());
-		
-		return ratingRepository.save(rating);
+
+		Rating saved = ratingRepository.save(rating);
+
+		product.setNumRatings(product.getNumRatings() + 1);
+		productRepository.save(product);
+
+		return saved;
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public List<Rating> getProductsRating(Long productId) {
-		// TODO Auto-generated method stub
 		return ratingRepository.getAllProductsRating(productId);
 	}
-	
-	
 
 }
+

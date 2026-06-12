@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.shopwavefusion.exception.OrderException;
 import com.shopwavefusion.modal.Address;
@@ -16,6 +17,8 @@ import com.shopwavefusion.modal.Order;
 import com.shopwavefusion.modal.OrderItem;
 import com.shopwavefusion.modal.User;
 import com.shopwavefusion.repository.AddressRepository;
+import com.shopwavefusion.repository.CartItemRepository;
+import com.shopwavefusion.repository.CartRepository;
 import com.shopwavefusion.repository.OrderItemRepository;
 import com.shopwavefusion.repository.OrderRepository;
 import com.shopwavefusion.repository.UserRepository;
@@ -25,27 +28,39 @@ import com.shopwavefusion.user.domain.PaymentStatus;
 
 @Service
 public class OrderServiceImplementation implements OrderService {
-	
+
 	private OrderRepository orderRepository;
 	private CartService cartService;
 	private AddressRepository addressRepository;
 	private UserRepository userRepository;
 	private OrderItemService orderItemService;
 	private OrderItemRepository orderItemRepository;
-	
-	public OrderServiceImplementation(OrderRepository orderRepository,CartService cartService,
-			AddressRepository addressRepository,UserRepository userRepository,
-			OrderItemService orderItemService,OrderItemRepository orderItemRepository) {
-		this.orderRepository=orderRepository;
-		this.cartService=cartService;
-		this.addressRepository=addressRepository;
-		this.userRepository=userRepository;
-		this.orderItemService=orderItemService;
-		this.orderItemRepository=orderItemRepository;
+	private CartRepository cartRepository;
+	private CartItemRepository cartItemRepository;
+
+	public OrderServiceImplementation(OrderRepository orderRepository, CartService cartService,
+			AddressRepository addressRepository, UserRepository userRepository,
+			OrderItemService orderItemService, OrderItemRepository orderItemRepository,
+			CartRepository cartRepository, CartItemRepository cartItemRepository) {
+		this.orderRepository = orderRepository;
+		this.cartService = cartService;
+		this.addressRepository = addressRepository;
+		this.userRepository = userRepository;
+		this.orderItemService = orderItemService;
+		this.orderItemRepository = orderItemRepository;
+		this.cartRepository = cartRepository;
+		this.cartItemRepository = cartItemRepository;
 	}
 
 	@Override
-	public Order createOrder(User user, CreateOrderRequest orderRequest) {
+	@Transactional
+	public Order createOrder(User user, CreateOrderRequest orderRequest) throws OrderException {
+		Cart cart = cartService.findUserCart(user.getId());
+
+		if (cart == null || cart.getCartItems() == null || cart.getCartItems().isEmpty()) {
+			throw new OrderException("No se puede crear una orden con un carrito vacio.");
+		}
+
 		Address shippAddress = new Address();
 		shippAddress.setCity(orderRequest.getCity());
 		shippAddress.setFirstName(orderRequest.getFirstName());
@@ -55,141 +70,153 @@ public class OrderServiceImplementation implements OrderService {
 		shippAddress.setStreetAddress(orderRequest.getStreetAddress());
 		shippAddress.setZipCode(orderRequest.getZipCode());
 		shippAddress.setUser(user);
-		Address address= addressRepository.save(shippAddress);
-		user.getAddresses().add(address);
-		userRepository.save(user);
-		
-		Cart cart=cartService.findUserCart(user.getId());
-		List<OrderItem> orderItems=new ArrayList<>();
-		
-		for(CartItem item: cart.getCartItems()) {
-			OrderItem orderItem=new OrderItem();
-			
+		Address address = addressRepository.save(shippAddress);
+
+		List<OrderItem> orderItems = new ArrayList<>();
+
+		for (CartItem item : cart.getCartItems()) {
+			OrderItem orderItem = new OrderItem();
+
 			orderItem.setPrice(item.getPrice());
 			orderItem.setProduct(item.getProduct());
 			orderItem.setQuantity(item.getQuantity());
 			orderItem.setSize(item.getSize());
 			orderItem.setUserId(item.getUserId());
 			orderItem.setDiscountedPrice(item.getDiscountedPrice());
-			
-			
-			OrderItem createdOrderItem=orderItemRepository.save(orderItem);
-			
-			orderItems.add(createdOrderItem);
+
+			orderItems.add(orderItem);
 		}
-		
-		
-		Order createdOrder=new Order();
+
+		Order createdOrder = new Order();
 		createdOrder.setUser(user);
+		createdOrder.setOrderId(generateReadableOrderId());
 		createdOrder.setOrderItems(orderItems);
 		createdOrder.setTotalPrice(cart.getTotalPrice());
 		createdOrder.setTotalDiscountedPrice(cart.getTotalDiscountedPrice());
 		createdOrder.setDiscounte(cart.getDiscounte());
 		createdOrder.setTotalItem(cart.getTotalItem());
-		
+
 		createdOrder.setShippingAddress(address);
 		createdOrder.setOrderDate(LocalDateTime.now());
-		createdOrder.setOrderStatus(OrderStatus.PENDING);
+		createdOrder.setOrderStatus(OrderStatus.PLACED);
 		createdOrder.getPaymentDetails().setStatus(PaymentStatus.COMPLETED);
 		createdOrder.getPaymentDetails().setCardholderName(orderRequest.getCardholderName());
 		createdOrder.getPaymentDetails().setCardNumber(orderRequest.getCardNumber());
 		createdOrder.getPaymentDetails().setPaymentMethod(orderRequest.getPaymentMethod());
-		createdOrder.getPaymentDetails().setPaymentId(generatePaymentId());
+		createdOrder.getPaymentDetails()
+				.setPaymentId(orderRequest.getPaymentId() != null && !orderRequest.getPaymentId().isBlank()
+						? orderRequest.getPaymentId()
+						: generatePaymentId());
 		createdOrder.setCreatedAt(LocalDateTime.now());
-	
-		
-		Order savedOrder=orderRepository.save(createdOrder);
-		
-		for(OrderItem item:orderItems) {
+
+		Order savedOrder = orderRepository.save(createdOrder);
+
+		for (OrderItem item : orderItems) {
 			item.setOrder(savedOrder);
 			orderItemRepository.save(item);
 		}
-		
+
+		for (CartItem cartItem : new ArrayList<>(cart.getCartItems())) {
+			cartItemRepository.delete(cartItem);
+		}
+		cart.getCartItems().clear();
+		cart.setTotalPrice(0);
+		cart.setTotalDiscountedPrice(0);
+		cart.setDiscounte(0);
+		cart.setTotalItem(0);
+		cartRepository.save(cart);
+
 		return savedOrder;
-		
 	}
 
 	@Override
+	@Transactional
 	public Order placedOrder(Long orderId) throws OrderException {
-		Order order=findOrderById(orderId);
+		Order order = findOrderById(orderId);
 		order.setOrderStatus(OrderStatus.PLACED);
 		order.getPaymentDetails().setStatus(PaymentStatus.COMPLETED);
-		return order;
-	}
-
-	@Override
-	public Order confirmedOrder(Long orderId) throws OrderException {
-		Order order=findOrderById(orderId);
-		order.setOrderStatus(OrderStatus.CONFIRMED);
-		
-		
 		return orderRepository.save(order);
 	}
 
 	@Override
+	@Transactional
+	public Order confirmedOrder(Long orderId) throws OrderException {
+		Order order = findOrderById(orderId);
+		order.setOrderStatus(OrderStatus.CONFIRMED);
+		return orderRepository.save(order);
+	}
+
+	@Override
+	@Transactional
 	public Order shippedOrder(Long orderId) throws OrderException {
-		Order order=findOrderById(orderId);
+		Order order = findOrderById(orderId);
 		order.setOrderStatus(OrderStatus.SHIPPED);
 		return orderRepository.save(order);
 	}
 
 	@Override
+	@Transactional
 	public Order deliveredOrder(Long orderId) throws OrderException {
-		Order order=findOrderById(orderId);
+		Order order = findOrderById(orderId);
 		order.setOrderStatus(OrderStatus.DELIVERED);
 		return orderRepository.save(order);
 	}
 
 	@Override
+	@Transactional
 	public Order cancledOrder(Long orderId) throws OrderException {
-		Order order=findOrderById(orderId);
+		Order order = findOrderById(orderId);
 		order.setOrderStatus(OrderStatus.CANCELLED);
 		return orderRepository.save(order);
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public Order findOrderById(Long orderId) throws OrderException {
-		Optional<Order> opt=orderRepository.findById(orderId);
-		
-		if(opt.isPresent()) {
+		Optional<Order> opt = orderRepository.findById(orderId);
+
+		if (opt.isPresent()) {
 			return opt.get();
 		}
-		throw new OrderException("order not exist with id "+orderId);
+		throw new OrderException("order not exist with id " + orderId);
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public List<Order> usersOrderHistory(Long userId) {
-		List<Order> orders=orderRepository.getUsersOrders(userId);
-		return orders;
+		return orderRepository.getUsersOrders(userId);
 	}
 
 	@Override
+	@Transactional(readOnly = true)
 	public List<Order> getAllOrders() {
-		
 		return orderRepository.findAll();
 	}
 
 	@Override
+	@Transactional
 	public void deleteOrder(Long orderId) throws OrderException {
-				
 		orderRepository.deleteById(orderId);
-		
 	}
-	
-	
 
-    public static String generatePaymentId() {
-    	 String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    	 int LENGTH = 30;
-    	
-    	SecureRandom random = new SecureRandom();
-        StringBuilder sb = new StringBuilder(LENGTH);
-        for (int i = 0; i < LENGTH; i++) {
-            int randomIndex = random.nextInt(CHARACTERS.length());
-            char randomChar = CHARACTERS.charAt(randomIndex);
-            sb.append(randomChar);
-        }
-        return sb.toString();
-    }
+	public static String generatePaymentId() {
+		String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+		int LENGTH = 30;
 
+		SecureRandom random = new SecureRandom();
+		StringBuilder sb = new StringBuilder(LENGTH);
+		for (int i = 0; i < LENGTH; i++) {
+			int randomIndex = random.nextInt(CHARACTERS.length());
+			char randomChar = CHARACTERS.charAt(randomIndex);
+			sb.append(randomChar);
+		}
+		return sb.toString();
+	}
+
+	public static String generateReadableOrderId() {
+		SecureRandom random = new SecureRandom();
+		long number = (long) (random.nextDouble() * 9_000_000_000L) + 1_000_000_000L;
+		return "SW-" + number;
+	}
 }
+

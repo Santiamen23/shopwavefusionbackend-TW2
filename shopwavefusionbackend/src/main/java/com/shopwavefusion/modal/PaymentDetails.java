@@ -5,28 +5,42 @@ import java.time.LocalDate;
 import com.shopwavefusion.user.domain.PaymentMethod;
 import com.shopwavefusion.user.domain.PaymentStatus;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Embeddable;
+
+@Embeddable
 public class PaymentDetails {
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "payment_method")
 	private PaymentMethod paymentMethod;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "payment_status")
 	private PaymentStatus status;
+
+	@Column(name = "payment_id")
 	private String paymentId;
 
+	@Column(name = "cardholder_name")
 	private String cardholderName;
 
+	@Column(name = "card_number")
 	private String cardNumber;
 
+	@Column(name = "expiration_date")
 	private LocalDate expirationDate;
 
+	@Column(name = "cvv")
 	private String cvv;
 
 	public PaymentDetails() {
-		super();
-		// TODO Auto-generated constructor stub
 	}
 
 	public PaymentDetails(PaymentMethod paymentMethod, PaymentStatus status, String paymentId, String cardholderName,
 			String cardNumber, LocalDate expirationDate, String cvv) {
-		super();
 		this.paymentMethod = paymentMethod;
 		this.status = status;
 		this.paymentId = paymentId;
@@ -92,3 +106,4 @@ public class PaymentDetails {
 		this.cvv = cvv;
 	}
 }
+

@@ -1,85 +1,120 @@
 package com.shopwavefusion.service;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.shopwavefusion.exception.CartItemException;
 import com.shopwavefusion.exception.ProductException;
+import com.shopwavefusion.exception.UserException;
 import com.shopwavefusion.modal.Cart;
 import com.shopwavefusion.modal.CartItem;
 import com.shopwavefusion.modal.Product;
 import com.shopwavefusion.modal.User;
 import com.shopwavefusion.repository.CartRepository;
+import com.shopwavefusion.repository.UserRepository;
 import com.shopwavefusion.request.AddItemRequest;
 
 @Service
-public class CartServiceImplementation implements CartService{
-	
+public class CartServiceImplementation implements CartService {
+
 	private CartRepository cartRepository;
 	private CartItemService cartItemService;
 	private ProductService productService;
-	
-	
-	public CartServiceImplementation(CartRepository cartRepository,CartItemService cartItemService,
-			ProductService productService) {
-		this.cartRepository=cartRepository;
-		this.productService=productService;
-		this.cartItemService=cartItemService;
+	private UserRepository userRepository;
+
+	public CartServiceImplementation(CartRepository cartRepository, CartItemService cartItemService,
+			ProductService productService, UserRepository userRepository) {
+		this.cartRepository = cartRepository;
+		this.productService = productService;
+		this.cartItemService = cartItemService;
+		this.userRepository = userRepository;
 	}
 
 	@Override
 	public Cart createCart(User user) {
-		
+		Cart existing = cartRepository.findByUserId(user.getId());
+		if (existing != null) {
+			return existing;
+		}
 		Cart cart = new Cart();
 		cart.setUser(user);
-		Cart createdCart=cartRepository.save(cart);
-		return createdCart;
-	}
-	
-	public Cart findUserCart(Long userId) {
-		Cart cart =	cartRepository.findByUserId(userId);
-		int totalPrice=0;
-		int totalDiscountedPrice=0;
-		int totalItem=0;
-		for(CartItem cartsItem : cart.getCartItems()) {
-			totalPrice+=cartsItem.getPrice();
-			totalDiscountedPrice+=cartsItem.getDiscountedPrice();
-			totalItem+=cartsItem.getQuantity();
-		}
-		
-		cart.setTotalPrice(totalPrice);
-		cart.setTotalItem(cart.getCartItems().size());
-		cart.setTotalDiscountedPrice(totalDiscountedPrice);
-		cart.setDiscounte(totalPrice-totalDiscountedPrice);
-		cart.setTotalItem(totalItem);
-		
 		return cartRepository.save(cart);
-		
 	}
 
 	@Override
-	public CartItem addCartItem(Long userId, AddItemRequest req) throws ProductException {
-		Cart cart=cartRepository.findByUserId(userId);
-		Product product=productService.findProductById(req.getProductId());
-		
-		CartItem isPresent=cartItemService.isCartItemExist(cart, product, req.getSize(),userId);
-		CartItem createdCartItem=null;
-		if(isPresent == null) {
+	@Transactional
+	public Cart findUserCart(Long userId) {
+		Cart cart = cartRepository.findByUserId(userId);
+		if (cart == null) {
+			User user = userRepository.findById(userId).orElse(null);
+			if (user == null) {
+				return null;
+			}
+			cart = createCart(user);
+		}
+
+		int totalPrice = 0;
+		int totalDiscountedPrice = 0;
+		int totalItem = 0;
+		int totalQuantity = 0;
+
+		for (CartItem item : cart.getCartItems()) {
+			totalPrice += item.getPrice() != null ? item.getPrice() : 0;
+			totalDiscountedPrice += item.getDiscountedPrice() != null ? item.getDiscountedPrice() : 0;
+			totalItem += 1;
+			totalQuantity += item.getQuantity();
+		}
+
+		cart.setTotalPrice(totalPrice);
+		cart.setTotalItem(totalQuantity);
+		cart.setTotalDiscountedPrice(totalDiscountedPrice);
+		cart.setDiscounte(totalPrice - totalDiscountedPrice);
+
+		return cartRepository.save(cart);
+	}
+
+	@Override
+	@Transactional
+	public CartItem addCartItem(Long userId, AddItemRequest req) throws ProductException, CartItemException, UserException {
+		Cart cart = cartRepository.findByUserId(userId);
+		if (cart == null) {
+			User user = userRepository.findById(userId)
+					.orElseThrow(() -> new ProductException("User not found with id " + userId));
+			cart = createCart(user);
+		}
+		Product product = productService.findProductById(req.getProductId());
+
+		CartItem isPresent = cartItemService.isCartItemExist(cart, product, req.getSize(), userId);
+		CartItem createdCartItem = null;
+		if (isPresent == null) {
 			CartItem cartItem = new CartItem();
 			cartItem.setProduct(product);
 			cartItem.setCart(cart);
-			cartItem.setQuantity(req.getQuantity());
+			int quantity = req.getQuantity() > 0 ? req.getQuantity() : 1;
+			cartItem.setQuantity(quantity);
 			cartItem.setUserId(userId);
-			
-			
-			int price=req.getQuantity()*product.getDiscountedPrice();
-			cartItem.setPrice(price);
 			cartItem.setSize(req.getSize());
-			
-			 createdCartItem=cartItemService.createCartItem(cartItem);
+
+			int unitPrice = product.getDiscountedPrice();
+			if (req.getPrice() != null && req.getPrice() > 0) {
+				unitPrice = req.getPrice() / quantity;
+			}
+			cartItem.setPrice(quantity * product.getPrice());
+			cartItem.setDiscountedPrice(quantity * unitPrice);
+
+			createdCartItem = cartItemService.createCartItem(cartItem);
+			cart.getCartItems().add(createdCartItem);
+		} else {
+			isPresent.setQuantity(isPresent.getQuantity() + (req.getQuantity() > 0 ? req.getQuantity() : 1));
+			isPresent.setPrice(isPresent.getQuantity() * isPresent.getProduct().getPrice());
+			isPresent.setDiscountedPrice(isPresent.getQuantity() * isPresent.getProduct().getDiscountedPrice());
+			createdCartItem = cartItemService.updateCartItem(userId, isPresent.getId(), isPresent);
+			cart.getCartItems().remove(isPresent);
 			cart.getCartItems().add(createdCartItem);
 		}
-		
-		
+
 		return createdCartItem;
 	}
 
 }
+

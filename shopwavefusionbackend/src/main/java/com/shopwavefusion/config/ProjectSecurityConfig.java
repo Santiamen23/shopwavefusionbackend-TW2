@@ -1,10 +1,11 @@
 package com.shopwavefusion.config;
 
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -25,11 +26,11 @@ public class ProjectSecurityConfig {
 		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.cors(corsCustomizer -> corsCustomizer.configurationSource(request -> {
 					CorsConfiguration config = new CorsConfiguration();
-					config.setAllowedOriginPatterns(Collections.singletonList("*"));
-					config.setAllowedMethods(Collections.singletonList("*"));
+					config.setAllowedOriginPatterns(List.of("*"));
+					config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 					config.setAllowCredentials(true);
-					config.setAllowedHeaders(Collections.singletonList("*"));
-					config.setExposedHeaders(Arrays.asList("Authorization"));
+					config.setAllowedHeaders(List.of("*"));
+					config.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
 					config.setMaxAge(3600L);
 					return config;
 				})).csrf((csrf) -> csrf.disable())
@@ -39,13 +40,17 @@ public class ProjectSecurityConfig {
 						.authenticationEntryPoint((request, response, authException) -> response
 								.sendError(HttpServletResponse.SC_UNAUTHORIZED, authException.getMessage())))
 				.authorizeHttpRequests((requests) -> requests
-						.requestMatchers("/admin/products/**", "/admin/orders/**", "/admin/control/**").hasRole("ADMIN")
-						.requestMatchers("/cart/**", "/users/**", "cart_items/**", "/orders/**", 
-								"/ratings/**")
-						.hasAnyRole("USER", "ADMIN").requestMatchers("/all").hasAnyRole("USER", "ADMIN")
 						.requestMatchers("/auth/signin").authenticated()
-						.requestMatchers("/notices","/products/**", "/","/contact", "/auth/signup", "/swagger-ui*/**", "/v3/api-docs/**")
-						.permitAll())
+						.requestMatchers("/auth/signup").permitAll()
+						.requestMatchers(HttpMethod.GET, "/ratings/**", "/reviews/**").permitAll()
+						.requestMatchers("/admin/products/**", "/admin/orders/**", "/admin/control/**")
+							.hasRole("ADMIN")
+						.requestMatchers("/cart/**", "/users/**", "/cart_items/**", "/orders/**", "/ratings/**",
+								"/reviews/**")
+							.hasAnyRole("USER", "ADMIN")
+						.requestMatchers("/products/**", "/all", "/", "/swagger-ui/**", "/v3/api-docs/**")
+							.permitAll()
+						.anyRequest().permitAll())
 				.httpBasic(Customizer.withDefaults());
 		return http.build();
 	}
@@ -56,3 +61,4 @@ public class ProjectSecurityConfig {
 	}
 
 }
+
