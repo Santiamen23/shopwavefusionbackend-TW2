@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.shopwavefusion.user.domain.OrderStatus;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -23,6 +24,7 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "orders")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Order {
 
     @Id

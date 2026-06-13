@@ -38,7 +38,7 @@ public class AdminInitializer implements CommandLineRunner {
 
             User savedAdminUser = userRepository.save(adminUser);
 
-          
+           
              cartService.createCart(savedAdminUser);
            
         }
