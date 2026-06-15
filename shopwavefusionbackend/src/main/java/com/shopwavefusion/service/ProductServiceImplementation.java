@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import com.shopwavefusion.exception.ProductException;
 import com.shopwavefusion.modal.Category;
 import com.shopwavefusion.modal.Product;
+import com.shopwavefusion.repository.CartItemRepository;
 import com.shopwavefusion.repository.CategoryRepository;
+import com.shopwavefusion.repository.OrderItemRepository;
 import com.shopwavefusion.repository.ProductRepository;
 import com.shopwavefusion.request.CreateProductRequest;
 
@@ -29,11 +31,15 @@ public class ProductServiceImplementation implements ProductService {
 	private ProductRepository productRepository;
 	private UserService userService;
 	private CategoryRepository categoryRepository;
-	
-	public ProductServiceImplementation(ProductRepository productRepository,UserService userService,CategoryRepository categoryRepository) {
+	private CartItemRepository cartItemRepository;
+	private OrderItemRepository orderItemRepository;
+
+	public ProductServiceImplementation(ProductRepository productRepository,UserService userService,CategoryRepository categoryRepository,CartItemRepository cartItemRepository,OrderItemRepository orderItemRepository) {
 		this.productRepository=productRepository;
 		this.userService=userService;
 		this.categoryRepository=categoryRepository;
+		this.cartItemRepository=cartItemRepository;
+		this.orderItemRepository=orderItemRepository;
 	}
 	@Override
     public Page<Product> getProductsSortedByDiscountedPrice(String sortDirection, int page, int pageSize) {
@@ -122,16 +128,19 @@ public class ProductServiceImplementation implements ProductService {
 	}
 
 	@Override
+	@Transactional
 	public String deleteProduct(Long productId) throws ProductException {
-		
+
 		Product product=findProductById(productId);
-		
+
 		System.out.println("delete product "+product.getId()+" - "+productId);
 		product.getSizes().clear();
-//		productRepository.save(product);
-//		product.getCategory().
+
+		cartItemRepository.deleteByProduct(product);
+		orderItemRepository.deleteByProduct(product);
+
 		productRepository.delete(product);
-		
+
 		return "Product deleted Successfully";
 	}
 
