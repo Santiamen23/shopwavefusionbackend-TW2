@@ -6,16 +6,17 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 
 import com.shopwavefusion.exception.ProductException;
+import com.shopwavefusion.exception.ProductInActiveCartException;
 import com.shopwavefusion.modal.Product;
 import com.shopwavefusion.request.CreateProductRequest;
 import com.shopwavefusion.user.domain.ProductSubCategory;
 
 public interface ProductService {
-	
+
 	// only for admin
 	public Product createProduct(CreateProductRequest req) throws ProductException, SQLException;
-	
-	public String deleteProduct(Long productId) throws ProductException;
+
+	public String deleteProduct(Long productId) throws ProductException, ProductInActiveCartException;
 	
 	public Product updateProduct(Long productId,Product product)throws ProductException;
 	

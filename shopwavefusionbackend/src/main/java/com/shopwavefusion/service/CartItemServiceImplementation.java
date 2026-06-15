@@ -81,7 +81,7 @@ public class CartItemServiceImplementation implements CartItemService {
 		User reqUser = userService.findUserById(userId);
 
 		if (user.getId().equals(reqUser.getId())) {
-			cartItemRepository.deleteById(cartItem.getId());
+			cartItemRepository.deleteCartItemById(cartItem.getId());
 		} else {
 			throw new UserException("you can't remove anothor users item");
 		}

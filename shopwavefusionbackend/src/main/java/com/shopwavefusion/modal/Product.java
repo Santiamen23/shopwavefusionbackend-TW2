@@ -23,8 +23,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 
+import org.hibernate.annotations.Where;
+
 @Entity
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@Where(clause = "deleted_at IS NULL")
 public class Product {
 
 	@Id
@@ -79,9 +82,12 @@ public class Product {
     private Category category;
     
     private LocalDateTime createdAt;
-    
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
 	public Product() {
-		
+
 	}
 
 	public Product(Long id, String title, String description, int price, int discountedPrice, int discountPersent,
@@ -112,6 +118,14 @@ public class Product {
 
 	public void setCreatedAt(LocalDateTime createdAt) {
 		this.createdAt = createdAt;
+	}
+
+	public LocalDateTime getDeletedAt() {
+		return deletedAt;
+	}
+
+	public void setDeletedAt(LocalDateTime deletedAt) {
+		this.deletedAt = deletedAt;
 	}
 	public List<Rating> getRatings() {
 		return ratings;

@@ -10,6 +10,7 @@ import com.shopwavefusion.modal.Cart;
 import com.shopwavefusion.modal.CartItem;
 import com.shopwavefusion.modal.Product;
 import com.shopwavefusion.modal.User;
+import com.shopwavefusion.repository.CartItemRepository;
 import com.shopwavefusion.repository.CartRepository;
 import com.shopwavefusion.repository.UserRepository;
 import com.shopwavefusion.request.AddItemRequest;
@@ -21,13 +22,15 @@ public class CartServiceImplementation implements CartService {
 	private CartItemService cartItemService;
 	private ProductService productService;
 	private UserRepository userRepository;
+	private CartItemRepository cartItemRepository;
 
 	public CartServiceImplementation(CartRepository cartRepository, CartItemService cartItemService,
-			ProductService productService, UserRepository userRepository) {
+			ProductService productService, UserRepository userRepository, CartItemRepository cartItemRepository) {
 		this.cartRepository = cartRepository;
 		this.productService = productService;
 		this.cartItemService = cartItemService;
 		this.userRepository = userRepository;
+		this.cartItemRepository = cartItemRepository;
 	}
 
 	@Override
@@ -58,7 +61,14 @@ public class CartServiceImplementation implements CartService {
 		int totalItem = 0;
 		int totalQuantity = 0;
 
-		for (CartItem item : cart.getCartItems()) {
+		java.util.Iterator<CartItem> it = cart.getCartItems().iterator();
+		while (it.hasNext()) {
+			CartItem item = it.next();
+			if (item.getProduct() == null) {
+				cartItemRepository.deleteById(item.getId());
+				it.remove();
+				continue;
+			}
 			totalPrice += item.getPrice() != null ? item.getPrice() : 0;
 			totalDiscountedPrice += item.getDiscountedPrice() != null ? item.getDiscountedPrice() : 0;
 			totalItem += 1;
@@ -76,6 +86,13 @@ public class CartServiceImplementation implements CartService {
 	@Override
 	@Transactional
 	public CartItem addCartItem(Long userId, AddItemRequest req) throws ProductException, CartItemException, UserException {
+		if (req.getSize() == null || req.getSize().isBlank()) {
+			throw new CartItemException("size is required");
+		}
+		if (req.getQuantity() <= 0) {
+			throw new CartItemException("quantity must be greater than 0");
+		}
+
 		Cart cart = cartRepository.findByUserId(userId);
 		if (cart == null) {
 			User user = userRepository.findById(userId)
@@ -90,22 +107,21 @@ public class CartServiceImplementation implements CartService {
 			CartItem cartItem = new CartItem();
 			cartItem.setProduct(product);
 			cartItem.setCart(cart);
-			int quantity = req.getQuantity() > 0 ? req.getQuantity() : 1;
-			cartItem.setQuantity(quantity);
+			cartItem.setQuantity(req.getQuantity());
 			cartItem.setUserId(userId);
 			cartItem.setSize(req.getSize());
 
 			int unitPrice = product.getDiscountedPrice();
 			if (req.getPrice() != null && req.getPrice() > 0) {
-				unitPrice = req.getPrice() / quantity;
+				unitPrice = req.getPrice() / req.getQuantity();
 			}
-			cartItem.setPrice(quantity * product.getPrice());
-			cartItem.setDiscountedPrice(quantity * unitPrice);
+			cartItem.setPrice(req.getQuantity() * product.getPrice());
+			cartItem.setDiscountedPrice(req.getQuantity() * unitPrice);
 
 			createdCartItem = cartItemService.createCartItem(cartItem);
 			cart.getCartItems().add(createdCartItem);
 		} else {
-			isPresent.setQuantity(isPresent.getQuantity() + (req.getQuantity() > 0 ? req.getQuantity() : 1));
+			isPresent.setQuantity(isPresent.getQuantity() + req.getQuantity());
 			isPresent.setPrice(isPresent.getQuantity() * isPresent.getProduct().getPrice());
 			isPresent.setDiscountedPrice(isPresent.getQuantity() * isPresent.getProduct().getDiscountedPrice());
 			createdCartItem = cartItemService.updateCartItem(userId, isPresent.getId(), isPresent);

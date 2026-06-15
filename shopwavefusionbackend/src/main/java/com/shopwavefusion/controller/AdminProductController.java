@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.shopwavefusion.exception.ProductException;
+import com.shopwavefusion.exception.ProductInActiveCartException;
 import com.shopwavefusion.modal.Product;
 import com.shopwavefusion.request.CreateProductRequest;
 import com.shopwavefusion.response.ApiResponse;
@@ -37,10 +38,16 @@ public class AdminProductController {
 	}
 
 	@DeleteMapping("/{productId}/delete")
-	public ResponseEntity<ApiResponse> deleteProductHandler(@PathVariable Long productId) throws ProductException {
-		String msg = productService.deleteProduct(productId);
-		ApiResponse res = new ApiResponse(msg, true);
-		return new ResponseEntity<ApiResponse>(res, HttpStatus.OK);
+	public ResponseEntity<ApiResponse> deleteProductHandler(@PathVariable Long productId)
+			throws ProductException, ProductInActiveCartException {
+		try {
+			String msg = productService.deleteProduct(productId);
+			ApiResponse res = new ApiResponse(msg, true);
+			return new ResponseEntity<ApiResponse>(res, HttpStatus.OK);
+		} catch (ProductInActiveCartException e) {
+			ApiResponse res = new ApiResponse(e.getMessage(), false);
+			return new ResponseEntity<ApiResponse>(res, HttpStatus.CONFLICT);
+		}
 	}
 
 	@PutMapping("/{productId}/update")
