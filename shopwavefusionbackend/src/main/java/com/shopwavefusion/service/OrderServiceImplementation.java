@@ -15,12 +15,15 @@ import com.shopwavefusion.modal.Cart;
 import com.shopwavefusion.modal.CartItem;
 import com.shopwavefusion.modal.Order;
 import com.shopwavefusion.modal.OrderItem;
+import com.shopwavefusion.modal.Product;
+import com.shopwavefusion.modal.Size;
 import com.shopwavefusion.modal.User;
 import com.shopwavefusion.repository.AddressRepository;
 import com.shopwavefusion.repository.CartItemRepository;
 import com.shopwavefusion.repository.CartRepository;
 import com.shopwavefusion.repository.OrderItemRepository;
 import com.shopwavefusion.repository.OrderRepository;
+import com.shopwavefusion.repository.ProductRepository;
 import com.shopwavefusion.repository.UserRepository;
 import com.shopwavefusion.request.CreateOrderRequest;
 import com.shopwavefusion.user.domain.OrderStatus;
@@ -37,11 +40,13 @@ public class OrderServiceImplementation implements OrderService {
 	private OrderItemRepository orderItemRepository;
 	private CartRepository cartRepository;
 	private CartItemRepository cartItemRepository;
+	private ProductRepository productRepository;
 
 	public OrderServiceImplementation(OrderRepository orderRepository, CartService cartService,
 			AddressRepository addressRepository, UserRepository userRepository,
 			OrderItemService orderItemService, OrderItemRepository orderItemRepository,
-			CartRepository cartRepository, CartItemRepository cartItemRepository) {
+			CartRepository cartRepository, CartItemRepository cartItemRepository,
+			ProductRepository productRepository) {
 		this.orderRepository = orderRepository;
 		this.cartService = cartService;
 		this.addressRepository = addressRepository;
@@ -50,6 +55,7 @@ public class OrderServiceImplementation implements OrderService {
 		this.orderItemRepository = orderItemRepository;
 		this.cartRepository = cartRepository;
 		this.cartItemRepository = cartItemRepository;
+		this.productRepository = productRepository;
 	}
 
 	@Override
@@ -73,6 +79,7 @@ public class OrderServiceImplementation implements OrderService {
 		Address address = addressRepository.save(shippAddress);
 
 		List<OrderItem> orderItems = new ArrayList<>();
+		List<Long> cartItemIds = new ArrayList<>();
 
 		for (CartItem item : cart.getCartItems()) {
 			OrderItem orderItem = new OrderItem();
@@ -85,6 +92,7 @@ public class OrderServiceImplementation implements OrderService {
 			orderItem.setDiscountedPrice(item.getDiscountedPrice());
 
 			orderItems.add(orderItem);
+			cartItemIds.add(item.getId());
 		}
 
 		Order createdOrder = new Order();
@@ -116,10 +124,38 @@ public class OrderServiceImplementation implements OrderService {
 			orderItemRepository.save(item);
 		}
 
-		for (CartItem cartItem : new ArrayList<>(cart.getCartItems())) {
-			cartItemRepository.delete(cartItem);
+		for (OrderItem item : orderItems) {
+			Product product = productRepository.findById(item.getProduct().getId())
+					.orElseThrow(() -> new OrderException("Product not found with id " + item.getProduct().getId()));
+
+			int qty = item.getQuantity();
+
+			if (product.getQuantity() < qty) {
+				throw new OrderException("Stock insuficiente para el producto '" + product.getTitle()
+						+ "'. Disponible: " + product.getQuantity() + ", solicitado: " + qty);
+			}
+			product.setQuantity(product.getQuantity() - qty);
+
+			if (item.getSize() != null && !item.getSize().isBlank() && product.getSizes() != null) {
+				Size sizeMatch = product.getSizes().stream()
+						.filter(s -> s.getName().equalsIgnoreCase(item.getSize()))
+						.findFirst()
+						.orElseThrow(() -> new OrderException("Talla '" + item.getSize()
+								+ "' no existe para el producto '" + product.getTitle() + "'"));
+				if (sizeMatch.getQuantity() < qty) {
+					throw new OrderException("Stock insuficiente para la talla '" + sizeMatch.getName()
+							+ "' del producto '" + product.getTitle()
+							+ "'. Disponible: " + sizeMatch.getQuantity() + ", solicitado: " + qty);
+				}
+				sizeMatch.setQuantity(sizeMatch.getQuantity() - qty);
+			}
+
+			productRepository.save(product);
 		}
-		cart.getCartItems().clear();
+
+		for (Long id : cartItemIds) {
+			cartItemRepository.deleteCartItemById(id);
+		}
 		cart.setTotalPrice(0);
 		cart.setTotalDiscountedPrice(0);
 		cart.setDiscounte(0);

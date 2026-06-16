@@ -16,7 +16,7 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long>{
 
 	long countByProduct(Product product);
 
-	@Modifying
+	@Modifying(flushAutomatically = true)
 	@org.springframework.transaction.annotation.Transactional
 	@Query("DELETE FROM CartItem ci WHERE ci.id = :id")
 	int deleteCartItemById(@Param("id") Long id);
