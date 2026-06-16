@@ -129,6 +129,7 @@ public class OrderServiceImplementation implements OrderService {
 					.orElseThrow(() -> new OrderException("Product not found with id " + item.getProduct().getId()));
 
 			int qty = item.getQuantity();
+			int stockBefore = product.getQuantity();
 
 			if (product.getQuantity() < qty) {
 				throw new OrderException("Stock insuficiente para el producto '" + product.getTitle()
@@ -150,7 +151,10 @@ public class OrderServiceImplementation implements OrderService {
 				sizeMatch.setQuantity(sizeMatch.getQuantity() - qty);
 			}
 
-			productRepository.save(product);
+			Product saved = productRepository.save(product);
+			System.out.println("[STOCK] product=" + saved.getId() + " title='" + saved.getTitle()
+					+ "' size='" + item.getSize() + "' before=" + stockBefore
+					+ " after=" + saved.getQuantity() + " delta=-" + qty);
 		}
 
 		for (Long id : cartItemIds) {
