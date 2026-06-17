@@ -9,15 +9,11 @@ public class Size {
 	@Column(name = "size_name")
 	private String name;
 
-	@Column(name = "size_quantity")
-	private int quantity;
-
 	public Size() {
 	}
 
-	public Size(String name, int quantity) {
+	public Size(String name) {
 		this.name = name;
-		this.quantity = quantity;
 	}
 
 	public String getName() {
@@ -28,13 +24,4 @@ public class Size {
 		this.name = name;
 	}
 
-	public int getQuantity() {
-		return quantity;
-	}
-
-	public void setQuantity(int quantity) {
-		this.quantity = quantity;
-	}
-
 }
-

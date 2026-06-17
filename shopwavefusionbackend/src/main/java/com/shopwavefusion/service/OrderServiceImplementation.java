@@ -16,7 +16,6 @@ import com.shopwavefusion.modal.CartItem;
 import com.shopwavefusion.modal.Order;
 import com.shopwavefusion.modal.OrderItem;
 import com.shopwavefusion.modal.Product;
-import com.shopwavefusion.modal.Size;
 import com.shopwavefusion.modal.User;
 import com.shopwavefusion.repository.AddressRepository;
 import com.shopwavefusion.repository.CartItemRepository;
@@ -131,25 +130,20 @@ public class OrderServiceImplementation implements OrderService {
 			int qty = item.getQuantity();
 			int stockBefore = product.getQuantity();
 
+			if (item.getSize() != null && !item.getSize().isBlank() && product.getSizes() != null) {
+				boolean sizeExists = product.getSizes().stream()
+						.anyMatch(s -> s.getName().equalsIgnoreCase(item.getSize()));
+				if (!sizeExists) {
+					throw new OrderException("Talla '" + item.getSize()
+							+ "' no existe para el producto '" + product.getTitle() + "'");
+				}
+			}
+
 			if (product.getQuantity() < qty) {
 				throw new OrderException("Stock insuficiente para el producto '" + product.getTitle()
 						+ "'. Disponible: " + product.getQuantity() + ", solicitado: " + qty);
 			}
 			product.setQuantity(product.getQuantity() - qty);
-
-			if (item.getSize() != null && !item.getSize().isBlank() && product.getSizes() != null) {
-				Size sizeMatch = product.getSizes().stream()
-						.filter(s -> s.getName().equalsIgnoreCase(item.getSize()))
-						.findFirst()
-						.orElseThrow(() -> new OrderException("Talla '" + item.getSize()
-								+ "' no existe para el producto '" + product.getTitle() + "'"));
-				if (sizeMatch.getQuantity() < qty) {
-					throw new OrderException("Stock insuficiente para la talla '" + sizeMatch.getName()
-							+ "' del producto '" + product.getTitle()
-							+ "'. Disponible: " + sizeMatch.getQuantity() + ", solicitado: " + qty);
-				}
-				sizeMatch.setQuantity(sizeMatch.getQuantity() - qty);
-			}
 
 			Product saved = productRepository.save(product);
 			System.out.println("[STOCK] product=" + saved.getId() + " title='" + saved.getTitle()
