@@ -3,6 +3,7 @@ package com.shopwavefusion.config;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -20,13 +21,24 @@ import jakarta.servlet.http.HttpServletResponse;
 @Configuration
 public class ProjectSecurityConfig {
 
+	@Value("${CORS_ALLOWED_ORIGINS:*}")
+	private String corsAllowedOrigins;
+
 	@Bean
 	SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
+
+		List<String> origins = corsAllowedOrigins.contains(",")
+				? Arrays.asList(corsAllowedOrigins.split(","))
+				: List.of(corsAllowedOrigins);
 
 		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.cors(corsCustomizer -> corsCustomizer.configurationSource(request -> {
 					CorsConfiguration config = new CorsConfiguration();
-					config.setAllowedOriginPatterns(List.of("*"));
+					if (origins.size() == 1 && "*".equals(origins.get(0))) {
+						config.setAllowedOriginPatterns(List.of("*"));
+					} else {
+						config.setAllowedOrigins(origins);
+					}
 					config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 					config.setAllowCredentials(true);
 					config.setAllowedHeaders(List.of("*"));
