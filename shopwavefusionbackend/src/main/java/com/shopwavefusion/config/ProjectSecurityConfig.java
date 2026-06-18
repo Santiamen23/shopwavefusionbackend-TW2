@@ -2,7 +2,10 @@ package com.shopwavefusion.config;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,24 +24,25 @@ import jakarta.servlet.http.HttpServletResponse;
 @Configuration
 public class ProjectSecurityConfig {
 
+	private static final Logger log = LoggerFactory.getLogger(ProjectSecurityConfig.class);
+
 	@Value("${CORS_ALLOWED_ORIGINS:*}")
 	private String corsAllowedOrigins;
 
 	@Bean
 	SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
 
-		List<String> origins = corsAllowedOrigins.contains(",")
-				? Arrays.asList(corsAllowedOrigins.split(","))
-				: List.of(corsAllowedOrigins);
+		List<String> origins = Arrays.stream(corsAllowedOrigins.split(","))
+				.map(String::trim)
+				filter(s -> !s.isEmpty())
+				.collect(Collectors.toList());
+
+		log.info("CORS allowed origins loaded: {}", origins);
 
 		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.cors(corsCustomizer -> corsCustomizer.configurationSource(request -> {
 					CorsConfiguration config = new CorsConfiguration();
-					if (origins.size() == 1 && "*".equals(origins.get(0))) {
-						config.setAllowedOriginPatterns(List.of("*"));
-					} else {
-						config.setAllowedOrigins(origins);
-					}
+					config.setAllowedOriginPatterns(origins);
 					config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 					config.setAllowCredentials(true);
 					config.setAllowedHeaders(List.of("*"));
@@ -52,6 +56,7 @@ public class ProjectSecurityConfig {
 						.authenticationEntryPoint((request, response, authException) -> response
 								.sendError(HttpServletResponse.SC_UNAUTHORIZED, authException.getMessage())))
 				.authorizeHttpRequests((requests) -> requests
+						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers("/auth/signin").authenticated()
 						.requestMatchers("/auth/signup").permitAll()
 						.requestMatchers(HttpMethod.GET, "/ratings/**", "/reviews/**").permitAll()
