@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -13,6 +14,10 @@ import com.shopwavefusion.user.domain.ProductSubCategory;
 
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
+
+	@Modifying(clearAutomatically = true, flushAutomatically = true)
+	@Query("UPDATE Product p SET p.quantity = p.quantity + :delta WHERE p.id = :productId")
+	int incrementQuantity(@Param("productId") Long productId, @Param("delta") int delta);
 
 	@Query("SELECT p From Product p Where LOWER(p.category.name)=:category")
 	public List<Product> findByCategory(@Param("category") String category);

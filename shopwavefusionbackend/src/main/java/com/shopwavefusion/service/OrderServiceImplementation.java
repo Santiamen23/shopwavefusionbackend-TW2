@@ -200,6 +200,21 @@ public class OrderServiceImplementation implements OrderService {
 	@Transactional
 	public Order cancledOrder(Long orderId) throws OrderException {
 		Order order = findOrderById(orderId);
+
+		if (order.getOrderStatus() == OrderStatus.CANCELLED) {
+			return order;
+		}
+
+		if (order.getOrderStatus() == OrderStatus.DELIVERED) {
+			throw new OrderException("No se puede cancelar una orden ya entregada.");
+		}
+
+		for (OrderItem item : order.getOrderItems()) {
+			Long productId = item.getProduct().getId();
+			int qty = item.getQuantity();
+			productRepository.incrementQuantity(productId, qty);
+		}
+
 		order.setOrderStatus(OrderStatus.CANCELLED);
 		return orderRepository.save(order);
 	}
