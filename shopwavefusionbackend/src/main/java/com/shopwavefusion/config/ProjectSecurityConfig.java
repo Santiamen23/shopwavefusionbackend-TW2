@@ -34,7 +34,7 @@ public class ProjectSecurityConfig {
 
 		List<String> origins = Arrays.stream(corsAllowedOrigins.split(","))
 				.map(String::trim)
-				filter(s -> !s.isEmpty())
+				.filter(s -> !s.isEmpty())
 				.collect(Collectors.toList());
 
 		log.info("CORS allowed origins loaded: {}", origins);
